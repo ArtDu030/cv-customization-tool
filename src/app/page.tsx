@@ -1,103 +1,207 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect } from 'react';
+import MasterProfileSetup from '@/components/MasterProfileSetup';
+import JobPostingUpload from '@/components/JobPostingUpload';
+import CVLayout from '@/components/CVLayout';
+import { MasterProfile, CustomizedCV, Language } from '@/types';
+import { getMasterProfile, saveLastCV, getLastCV } from '@/utils/localStorage';
+import { customizeCV, validateApiKey } from '@/services/claudeApi';
+import { generateCVPDF } from '@/services/pdfGenerator';
+
+type AppStep = 'setup' | 'upload' | 'preview';
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [currentStep, setCurrentStep] = useState<AppStep>('setup');
+  const [masterProfile, setMasterProfile] = useState<MasterProfile | null>(null);
+  const [customizedCV, setCustomizedCV] = useState<CustomizedCV | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    const savedProfile = getMasterProfile();
+    const lastCV = getLastCV();
+    
+    if (savedProfile) {
+      setMasterProfile(savedProfile);
+      setCurrentStep('upload');
+    }
+    
+    if (lastCV) {
+      setCustomizedCV(lastCV);
+    }
+  }, []);
+
+  const handleProfileSave = (profile: MasterProfile) => {
+    setMasterProfile(profile);
+    setCurrentStep('upload');
+  };
+
+  const handleJobUpload = async (jobContent: string, language: Language) => {
+    if (!masterProfile) {
+      setError('Master profile is required');
+      return;
+    }
+
+    if (!apiKey) {
+      setError('Claude API key is required');
+      return;
+    }
+
+    if (!validateApiKey(apiKey)) {
+      setError('Invalid API key format. Please use a valid Claude API key.');
+      return;
+    }
+
+    setError(null);
+    setIsProcessing(true);
+
+    try {
+      const cv = await customizeCV(masterProfile, jobContent, language, apiKey);
+      setCustomizedCV(cv);
+      saveLastCV(cv);
+      setCurrentStep('preview');
+    } catch (error: any) {
+      setError(error.message || 'Failed to customize CV');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleGeneratePDF = async () => {
+    if (!customizedCV) return;
+
+    try {
+      await generateCVPDF(customizedCV);
+    } catch (error: any) {
+      setError(error.message || 'Failed to generate PDF');
+    }
+  };
+
+  const handleBackToUpload = () => {
+    setCurrentStep('upload');
+    setError(null);
+  };
+
+  const handleEditProfile = () => {
+    setCurrentStep('setup');
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold text-gray-900">CV Customization Tool</h1>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium text-gray-700">Claude API Key:</label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="sk-ant-..."
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm"
+                />
+              </div>
+              {masterProfile && (
+                <button
+                  onClick={handleEditProfile}
+                  className="px-4 py-2 text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Edit Profile
+                </button>
+              )}
+            </div>
+          </div>
         </div>
+      </header>
+
+      {/* Step Indicator */}
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="flex items-center justify-center space-x-8">
+          <div className={`flex items-center ${currentStep === 'setup' ? 'text-blue-600' : 'text-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              currentStep === 'setup' ? 'bg-blue-600 text-white' : 'bg-gray-200'
+            }`}>1</div>
+            <span className="ml-2">Setup Profile</span>
+          </div>
+          <div className={`flex items-center ${currentStep === 'upload' ? 'text-blue-600' : 'text-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              currentStep === 'upload' ? 'bg-blue-600 text-white' : 'bg-gray-200'
+            }`}>2</div>
+            <span className="ml-2">Upload Job</span>
+          </div>
+          <div className={`flex items-center ${currentStep === 'preview' ? 'text-blue-600' : 'text-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              currentStep === 'preview' ? 'bg-blue-600 text-white' : 'bg-gray-200'
+            }`}>3</div>
+            <span className="ml-2">Preview & Export</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="max-w-7xl mx-auto px-4 pb-4">
+          <div className="bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="flex">
+              <div className="text-red-800">{error}</div>
+              <button
+                onClick={() => setError(null)}
+                className="ml-auto text-red-600 hover:text-red-800"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <main>
+        {currentStep === 'setup' && (
+          <MasterProfileSetup
+            initialProfile={masterProfile || undefined}
+            onSave={handleProfileSave}
+          />
+        )}
+
+        {currentStep === 'upload' && (
+          <JobPostingUpload
+            onJobUpload={handleJobUpload}
+            isProcessing={isProcessing}
+          />
+        )}
+
+        {currentStep === 'preview' && customizedCV && (
+          <div className="max-w-7xl mx-auto p-6 space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-900">Customized CV Preview</h2>
+              <div className="flex space-x-4">
+                <button
+                  onClick={handleBackToUpload}
+                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Back to Upload
+                </button>
+                <button
+                  onClick={handleGeneratePDF}
+                  className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-semibold"
+                >
+                  Download PDF
+                </button>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-lg shadow-lg p-4">
+              <CVLayout cv={customizedCV} />
+            </div>
+          </div>
+        )}
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
 }
