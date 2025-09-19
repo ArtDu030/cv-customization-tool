@@ -28,6 +28,32 @@ An intelligent React application that automatically customizes your CV based on 
 - Node.js 18+ installed
 - Claude API key from Anthropic
 
+## Quick Start (Recommended)
+
+### Prerequisites
+
+- Node.js 18+ installed
+- Claude API key from Anthropic
+
+### Easy Setup with Batch File
+
+For **Windows users**, the quickest way to get started:
+
+1. **Download/Clone this repository**
+2. **Double-click `START-CV-TOOL.bat`** 
+   
+   The batch file will automatically:
+   - Check if Node.js is installed
+   - Install dependencies (`npm install`)
+   - Build the application (`npm run build`)
+   - Start the development server
+   - Open your browser at `http://localhost:3000`
+
+3. **To stop the application**: Close the command window or press `Ctrl+C`
+
+> **Note**: Keep the command window open while using the application. Closing it will stop the server.
+
+
 ### Installation
 
 1. **Install dependencies**:
